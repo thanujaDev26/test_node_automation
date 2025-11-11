@@ -1,0 +1,69 @@
+name: Node.js CI/CD Deploy
+
+on:
+  push:
+    branches:
+      - dev
+      - qa
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    env:
+      APP_DIR: ~/app   
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Select target server
+        id: pick-server
+        run: |
+          if [[ "${GITHUB_REF#refs/heads/}" == "dev" ]]; then
+            echo "server=${{ secrets.DEV_SERVER }}" >> $GITHUB_OUTPUT
+          elif [[ "${GITHUB_REF#refs/heads/}" == "qa" ]]; then
+            echo "server=${{ secrets.QA_SERVER }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ steps.pick-server.outputs.server }} >> ~/.ssh/known_hosts
+
+      - name: Deploy files to server
+        uses: appleboy/scp-action@v1.2.0
+        with:
+          host: ${{ steps.pick-server.outputs.server }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          source: "."
+          target: ${{ env.APP_DIR }}
+
+      - name: Restart PM2 app
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ steps.pick-server.outputs.server }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            cd ${{ env.APP_DIR }}
+            npm install --omit=dev
+            pm2 stop all || true
+            pm2 start npm --name "demo-node-app" -- run start
+            pm2 save
+            pm2 startup
