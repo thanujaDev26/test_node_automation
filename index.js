@@ -12,7 +12,13 @@ app.get('/', async(req,res)=>{
 })
 
 app.get('/get', async()=>{
-    return "GET Request from Dev Branch";
+    return "GET Request from QA Branch";
+})
+
+app.get('/qa-test', async(req,res)=>{
+    res.status(200).json({
+        message : "QA Endpoint"
+    })
 })
 
 app.listen(port, '0.0.0.0', ()=>{
