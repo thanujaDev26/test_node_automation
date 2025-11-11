@@ -7,8 +7,12 @@ const port = process.env.PORT
 
 app.get('/', async(req,res)=>{
     res.status(200).json({
-        message : "GET is running on the server"
+        message : "GET is running on the Dev Server"
     })
+})
+
+app.get('/get', async()=>{
+    return "GET Request from Dev Branch";
 })
 
 app.listen(port, '0.0.0.0', ()=>{
