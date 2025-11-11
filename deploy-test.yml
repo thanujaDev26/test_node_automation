@@ -1,0 +1,106 @@
+name: Node.js CI/CD Deploy
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - qa
+      - pre-dev
+      - pre-prod
+      - prod
+    types:
+      - closed
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    env:
+      NODE_VERSION: 20
+
+    steps:
+      - name: Check if PR was merged
+        if: github.event.pull_request.merged == false
+        run: |
+          echo "PR was closed but not merged. Exiting workflow."
+          exit 0
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build || echo "No build script, skipping build"
+
+      - name: Select target server and directory
+        id: pick-server
+        run: |
+          branch="${GITHUB_REF#refs/heads/}"
+          
+          # Default values (dev)
+          server="${{ secrets.DEV_SERVER }}"
+          dir="~/app/dev"
+          port=3001
+
+          if [[ "$branch" == "dev" ]]; then
+            server="${{ secrets.DEV_SERVER }}"
+            dir="~/app/dev"
+            port=3001
+          elif [[ "$branch" == "qa" ]]; then
+            server="${{ secrets.QA_SERVER }}"
+            dir="~/app/qa"
+            port=3002
+          elif [[ "$branch" == "pre-dev" ]]; then
+            server="${{ secrets.PRE_DEV_SERVER }}"
+            dir="~/app/pre-dev"
+            port=3003
+          elif [[ "$branch" == "pre-prod" ]]; then
+            server="${{ secrets.PRE_PROD_SERVER }}"
+            dir="~/app/pre-prod"
+            port=3004
+          elif [[ "$branch" == "prod" ]]; then
+            server="${{ secrets.PROD_SERVER }}"
+            dir="~/app/prod"
+            port=3005
+          fi
+
+          echo "server=$server" >> $GITHUB_OUTPUT
+          echo "APP_DIR=$dir" >> $GITHUB_ENV
+          echo "PORT=$port" >> $GITHUB_ENV
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ steps.pick-server.outputs.server }} >> ~/.ssh/known_hosts
+
+      - name: Deploy files to server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ steps.pick-server.outputs.server }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          source: "."
+          target: ${{ env.APP_DIR }}
+
+      - name: Restart PM2 app
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ steps.pick-server.outputs.server }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            cd ${{ env.APP_DIR }}
+            npm install --omit=dev
+            pm2 stop "demo-node-app-${GITHUB_REF#refs/heads/}" || true
+            pm2 start npm --name "demo-node-app-${GITHUB_REF#refs/heads/}" -- run start
+            pm2 save
