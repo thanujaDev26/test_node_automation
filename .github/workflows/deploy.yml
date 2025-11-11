@@ -8,9 +8,9 @@ on:
 
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest   
     env:
-      APP_DIR: ~/app   
+      APP_DIR: ~/app         
 
     steps:
       - name: Checkout repository
@@ -23,9 +23,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Build project
-        run: npm run build
 
       - name: Select target server
         id: pick-server
@@ -63,7 +60,7 @@ jobs:
           script: |
             cd ${{ env.APP_DIR }}
             npm install --omit=dev
-            pm2 stop all || true
+            pm2 stop demo-node-app || true
             pm2 start npm --name "demo-node-app" -- run start
             pm2 save
             pm2 startup
