@@ -44,7 +44,7 @@ jobs:
           ssh-keyscan -H ${{ steps.pick-server.outputs.server }} >> ~/.ssh/known_hosts
 
       - name: Deploy files to server
-        uses: appleboy/scp-action@v1.2.0
+        uses: appleboy/scp-action@master
         with:
           host: ${{ steps.pick-server.outputs.server }}
           username: ${{ secrets.SSH_USER }}
@@ -54,7 +54,7 @@ jobs:
           target: ${{ env.APP_DIR }}
 
       - name: Restart PM2 app
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@master
         with:
           host: ${{ steps.pick-server.outputs.server }}
           username: ${{ secrets.SSH_USER }}
