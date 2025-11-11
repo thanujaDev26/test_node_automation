@@ -21,6 +21,12 @@ app.get('/qa-test', async(req,res)=>{
     })
 })
 
+app.get('/qa-test/thanuja', async(req,res)=>{
+    res.status(200).json({
+        message : "Hello Thanuja"
+    })
+})
+
 app.listen(port, '0.0.0.0', ()=>{
     console.log(`App is running on ${port}`)
 })
