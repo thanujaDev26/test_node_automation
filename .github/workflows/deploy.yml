@@ -63,4 +63,3 @@ jobs:
             pm2 stop demo-node-app || true
             pm2 start npm --name "demo-node-app" -- run start
             pm2 save
-            pm2 startup
